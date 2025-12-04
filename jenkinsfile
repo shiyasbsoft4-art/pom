@@ -1,0 +1,51 @@
+pipeline {
+  agent any
+
+  tools {
+    jdk 'jdk123'
+    maven 'maven123'
+  }
+
+  environment {
+    // credentials binding
+    GITHUB_CREDS = credentials('github-packages-cred')
+  }
+
+  stages {
+    stage('Checkout Code') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Build & Deploy') {
+      steps {
+        configFileProvider([configFile(fileId: 'maven-github-settings', variable: 'MAVEN_SETTINGS')]) {
+          withCredentials([usernamePassword(
+              credentialsId: 'github-packages-cred',
+              usernameVariable: 'GH_USER',
+              passwordVariable: 'GH_TOKEN'
+          )]) {
+            bat """
+              set MAVEN_SETTINGS=%MAVEN_SETTINGS%
+              set GITHUB_USER=%GH_USER%
+              set GITHUB_TOKEN=%GH_TOKEN%
+
+              "%MAVEN_HOME%\\bin\\mvn" -s "%MAVEN_SETTINGS%" -B clean package
+              "%MAVEN_HOME%\\bin\\mvn" -s "%MAVEN_SETTINGS%" -B deploy
+            """
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo 'Build and deployment completed successfully.'
+    }
+    failure {
+      echo 'Pipeline failed.'
+    }
+  }
+}
